@@ -9,7 +9,8 @@ setwd("~/Desktop/R_folderforanalysis/new_results")
 library(readxl)
 library(dplyr)
 library(purrr)
-
+library(ggplot2)
+library(tidyr)
 
 # Checking core community at 95% presence across samples ------------------
 
