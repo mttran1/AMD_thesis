@@ -68,6 +68,33 @@ count_row_90 <- tibble(run_accessions = "n_genera_present") %>%
 # 4. Append it:
 df_90_with_count <- bind_rows(df_90, count_row_90)
 
+#transpose generated tables
+long_90 <- count_row_90 %>%
+  pivot_longer(
+    # only pivot the numeric columns, not the header row
+    cols      = where(is.numeric),
+    names_to  = "Genus",
+    values_to = "n_genera_present"
+  ) %>% select(Genus, n_genera_present)
+long_95 <- count_row_95 %>%
+  pivot_longer(
+    # only pivot the numeric columns, not the header row
+    cols      = where(is.numeric),
+    names_to  = "Genus",
+    values_to = "n_genera_present"
+  ) %>% select(Genus, n_genera_present)
+long_98 <- count_row_98 %>%
+  pivot_longer(
+    # only pivot the numeric columns, not the header row
+    cols      = where(is.numeric),
+    names_to  = "Genus",
+    values_to = "n_genera_present"
+  ) %>% select(Genus, n_genera_present)
+
+#exporting tables
+readr::write_tsv(long_90, "count_90_by_genus.tsv")
+readr::write_tsv(long_95, "count_95_by_genus.tsv")
+readr::write_tsv(long_98, "count_98_by_genus.tsv")
 
 # Checking core community at 98% presence across samples ------------------
 
