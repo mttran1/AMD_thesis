@@ -56,7 +56,7 @@ env_data <- env_data %>%
 env_data$pH <- metadata_env_var$pH  # Assuming pH is a column in your metadata
 
 # Select the genera of interest
-genera_of_interest <- c("Ferrovum", "Leptospirillum", "Acidithiobacillus", "Gallionella")
+genera_of_interest_core <- c("Ferrovum", "Leptospirillum", "Acidithiobacillus", "Gallionella")
 
 # Filter and summarize data
 library(dplyr)
@@ -107,5 +107,59 @@ env_data %>%
   select(all_of(genera_of_interest)) %>%
   summarise(across(everything(), range, na.rm=TRUE))
 
+
+# Running code for looking at core genera rel. abundance v. pH ------------
+
+# Select the genera of interest
+genera_of_interest_core <- c("13-2-20CM-66-19", "Acidiphilium", "JAFKFJ01", "Occallatibacter", "JAKAAZ01")
+
+# Filter and summarize data
+library(dplyr)
+library(ggplot2)
+library(forcats)
+# Assuming each genus is a column in the fitted matrix
+# Step 1: Calculate the sample counts for each pH group
+sample_counts <- env_data %>%
+  mutate(pH_group = cut(pH, breaks = c(-Inf, 2, 2.4, 2.8, 3.2, 3.6, 4.0, 4.4, 4.8, Inf), 
+                        labels = c("<2.0", "2.0-2.4", "2.4-2.8", "2.8-3.2", 
+                                   "3.2-3.6", "3.6-4.0", "4.0-4.4", "4.4-4.8", ">4.8"))) %>%
+  count(pH_group)  # Count the number of samples in each group
+
+# Step 2: Add sample counts to the x-axis labels
+sample_counts <- sample_counts %>%
+  mutate(pH_group_label = paste0(pH_group, "\n(n=", n, ")"))  # Create labels with counts
+
+# Step 3: Prepare relative abundances data
+relative_abundances <- env_data %>%
+  select(pH, all_of(genera_of_interest_core)) %>%  # Select relevant columns
+  pivot_longer(cols = all_of(genera_of_interest_core), 
+               names_to = "Genus", values_to = "Abundance") %>%  # Reshape data
+  mutate(pH_group = cut(pH, breaks = c(-Inf, 2, 2.4, 2.8, 3.2, 3.6, 4.0, 4.4, 4.8, Inf), 
+                        labels = c("<2.0", "2.0-2.4", "2.4-2.8", "2.8-3.2", 
+                                   "3.2-3.6", "3.6-4.0", "4.0-4.4", "4.4-4.8", ">4.8"))) %>%
+  group_by(pH_group, Genus) %>%
+  summarise(Relative_Abundance = mean(Abundance, na.rm = TRUE) * 100, .groups = "drop")
+
+# Step 4: Merge sample count labels with relative abundances
+relative_abundances <- relative_abundances %>%
+  left_join(sample_counts, by = "pH_group") %>%
+  mutate(pH_group_label = paste0(pH_group, "\n(n=", n, ")"))  # Add sample count labels
+
+# Step 5: Create the bar plot with updated x-axis labels
+ggplot(relative_abundances, aes(x = pH_group_label, y = Relative_Abundance, fill = Genus)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    x = "pH (with Sample Counts)", 
+    y = "Relative Abundance (%)"
+  ) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1") +  # Customize colors
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+#Checking relative abundance values, if values are between 0-1 then the rel. abundance is 0-1 but if they are greater it is a percentage
+env_data %>%
+  select(all_of(genera_of_interest_core)) %>%
+  summarise(across(everything(), range, na.rm=TRUE))
 
 
