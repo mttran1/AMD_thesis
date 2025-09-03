@@ -485,15 +485,9 @@ library(dplyr)
 library(tidyr)
 
 fivepercent_analysis_summ <- read.csv("analysis_sig_kw_fdr_5percent.csv")
-wide_abundances <- fivepercent_analysis_summ %>%
-  pivot_wider(
-    id_cols = Genus,
-    names_from = CT,
-    values_from = Abundance,
-    names_prefix = "Abundance_CT",
-    values_fn = mean  # or sum, median, first, etc.
-  )
-
+wide_abundances <- fivepercent_analysis_summ 
+    
+    
 # Step 1: Load your original p-value table
 pval_df <- read_csv("Presence_SIMPER_all_results.csv")
 # Step 2: Create a column name for each comparison
@@ -518,34 +512,21 @@ write_csv(wide_abundances_with_p, "CT_all_abund_for_figure.csv")
 
 # 0) Your palette (names must exactly match recoded groups)
 my_cols <- c(
-  Community_type_1 = "#F8766D",
-  Community_type_2 = "#7CAE00",
-  Community_type_3 = "#00BFC4",
-  Community_type_4 = "#C77CFF"
+  "Community type 1" = "#F8766D",
+  "Community type 2" = "#7CAE00",
+  "Community type 3" = "#00BFC4",
+  "Community type 4" = "#C77CFF"
 )
 
-df <- read_csv("CT_all_abund_for_figure.csv")
 
-# Filter to selected genera and pivot to long format
-df_long2 <- df %>%
-  filter(Genus %in% genera_of_interest) %>%
-  pivot_longer(cols = starts_with("Abundance_CT"),
-               names_to = "CT",
-               names_prefix = "Abundance_CT",
-               values_to = "Abundance") %>%
-  mutate(
-    CT = factor(CT, levels = 1:4, labels = paste0("Community_type_", 1:4)),
-    Genus = factor(Genus, levels = genera_of_interest)
-  )
+df_long2 <- read_csv("CT_all_abund_for_figure.csv") 
+df_long2 <- df_long2 %>%
+  select(-p_kw, -p_kw_fdr)#removing p_kw and p_kw_fdr columns
+
 
 # Step 1: Ensure df_long2$CT is a factor with the correct level order
 df_long2 <- df_long2 %>%
-  mutate(CT = factor(CT, levels = paste0("Community_type_", 1:4)))
-
-# Step 2: Max abundance per Genus x CT (for bar height reference)
-max_y_per_CT <- df_long2 %>%
-  group_by(Genus, CT) %>%
-  summarise(y_max = max(Abundance), .groups = "drop")
+  mutate(CT = factor(CT, levels = 1:4, labels = paste("Community type", 1:4)))
 
 pval_long <- df_long2 %>%
   distinct(Genus, .keep_all = TRUE) %>%
@@ -554,8 +535,8 @@ pval_long <- df_long2 %>%
                names_to = "comparison",
                values_to = "p_val") %>%
   mutate(
-    CT1 = paste0("Community_type_", substr(comparison, 3, 3)),
-    CT2 = paste0("Community_type_", substr(comparison, 4, 4)),
+    CT1 = paste0("Community type ", substr(comparison, 3, 3)),
+    CT2 = paste0("Community type ", substr(comparison, 4, 4)),
     sig_label = case_when(
       p_val < 0.001 ~ "***",
       p_val < 0.01  ~ "**",
@@ -564,62 +545,62 @@ pval_long <- df_long2 %>%
     )
   )
 
-max_y_1 <- dplyr::rename(max_y_per_CT, y1 = y_max)
-max_y_2 <- dplyr::rename(max_y_per_CT, y2 = y_max)
-
-
-# Make sure CT1 and CT2 match CT factor levels from df_long
+#adding significance bars
 pval_long <- pval_long %>%
   mutate(
-    CT1 = factor(CT1, levels = levels(df_long2$CT)),
-    CT2 = factor(CT2, levels = levels(df_long2$CT)),
-    x   = (as.numeric(CT1) + as.numeric(CT2)) / 2
-  )
-
-# Step 1: Ensure numeric positions for CT1 and CT2
-pval_long <- pval_long %>%
-  mutate(
-    CT1_num = as.numeric(factor(CT1, levels = levels(df_long2$CT))),
-    CT2_num = as.numeric(factor(CT2, levels = levels(df_long2$CT))),
+    CT1 = str_trim(CT1),
+    CT2 = str_trim(CT2),
+    CT1_num = as.numeric(factor(CT1, levels = paste("Community type", 1:4))),
+    CT2_num = as.numeric(factor(CT2, levels = paste("Community type", 1:4))),
     x       = (CT1_num + CT2_num) / 2
   )
-# Add a per-Genus staggered height
-# Get the max abundance (bar height) per Genus
+
 max_heights <- df_long2 %>%
   group_by(Genus) %>%
-  summarise(max_y = max(Abundance, na.rm = TRUE))
+  summarise(max_y = max(Abundance, na.rm = TRUE), .groups = "drop")
 
 pval_long <- pval_long %>%
   left_join(max_heights, by = "Genus") %>%
   group_by(Genus) %>%
   arrange(CT1_num, CT2_num) %>%
   mutate(
-    y_bracket = max_y + 0.05 * max_y * row_number(),  # space brackets
-    y_label   = y_bracket + 0.02 * max_y              # text above bracket
+    y_bracket = max_y + 0.05 * max_y * row_number(),  # bracket height
+    y_label   = y_bracket + 0.02 * max_y              # text height
   ) %>%
   ungroup()
 
 
+
 # Plot
 ggplot(df_long2, aes(x = CT, y = Abundance, fill = CT)) +
-  geom_col(width = 0.7, position = position_dodge(width = 0.9)) +
+  geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.2, alpha = 0.3) +
-  facet_wrap(~ Genus, scales = "free_y") +
-  # Brackets
+  # Add significance brackets (lines)
   geom_segment(
     data = pval_long %>% filter(sig_label != "ns"),
-    aes(x = CT1_num, xend = CT2_num, y = y_bracket, yend = y_bracket),
+    aes(
+      x = CT1_num,
+      xend = CT2_num,
+      y = y_bracket,
+      yend = y_bracket
+    ),
     inherit.aes = FALSE,
     linewidth = 0.5
   ) +
+  # Add significance stars or labels
   geom_text(
     data = pval_long %>% filter(sig_label != "ns"),
-    aes(x = x, y = y_label, label = sig_label),
+    aes(
+      x = x,
+      y = y_label,
+      label = sig_label
+    ),
     inherit.aes = FALSE,
     size = 4,
     fontface = "bold"
-  )+
-  scale_color_manual(values = my_cols) +
+  ) +
+  facet_wrap(~ Genus, scales = "free_y") +
+  scale_fill_manual(values = my_cols) +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
